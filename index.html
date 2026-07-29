@@ -726,6 +726,18 @@
               <p class="helper">키를 입력한 뒤 저장하면 다음 방문 때도 이어서 사용할 수 있습니다.</p>
             </div>
 
+            <div class="key-box">
+              <div class="field-label">Soul 2 API Key</div>
+              <div class="field-row">
+                <input id="soulKey" class="text-input" type="password" placeholder="SG_..." autocomplete="off" />
+                <div class="cta-row" style="margin-top: 0">
+                  <button id="saveSoulKeyBtn" class="button-secondary" type="button">키 저장</button>
+                  <button id="clearSoulKeyBtn" class="button-secondary" type="button">키 삭제</button>
+                </div>
+              </div>
+              <p class="helper">별자리 카드 이미지를 만들 때 사용합니다. 저장하면 다음 방문 때도 이어서 사용할 수 있습니다.</p>
+            </div>
+
             <div class="status" id="statusText" aria-live="polite">아직 추천 전입니다</div>
             <div class="metrics" aria-live="polite">
               <div class="metric">
@@ -742,6 +754,24 @@
               </div>
             </div>
             <div class="note" id="toast" aria-live="assertive"></div>
+
+            <div class="card" style="margin-top: 18px; padding: 18px;">
+              <div class="panel-head" style="margin-bottom: 12px;">
+                <div>
+                  <h2 class="section-title" style="font-size: 18px;">별자리 카드</h2>
+                  <p class="section-sub" id="cardStatus">추천이 완료되면 이미지가 생성됩니다.</p>
+                </div>
+              </div>
+              <div id="cardPreview" class="empty" style="padding: 0; overflow: hidden;">
+                <div style="aspect-ratio: 3 / 4; display: grid; place-items: center; background: linear-gradient(180deg, #1a1d4d, #7a56c2 58%, #ffb6c1); color: #fff; padding: 20px; text-align: center;">
+                  <div>
+                    <div style="font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.88;">Zodiac Card</div>
+                    <div style="margin-top: 10px; font-size: 18px; font-weight: 700;">번호 추천을 받으면</div>
+                    <div style="margin-top: 6px; font-size: 14px; line-height: 1.5; opacity: 0.92;">별자리 느낌의 카드 이미지가 여기에 표시됩니다.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </article>
 
@@ -780,8 +810,11 @@
       const resetBtn = document.getElementById("resetBtn");
       const saveKeyBtn = document.getElementById("saveKeyBtn");
       const clearKeyBtn = document.getElementById("clearKeyBtn");
+      const saveSoulKeyBtn = document.getElementById("saveSoulKeyBtn");
+      const clearSoulKeyBtn = document.getElementById("clearSoulKeyBtn");
       const birthdateInput = document.getElementById("birthdate");
       const apiKeyInput = document.getElementById("apiKey");
+      const soulKeyInput = document.getElementById("soulKey");
       const chatLog = document.getElementById("chatLog");
       const historyGrid = document.getElementById("historyGrid");
       const statusText = document.getElementById("statusText");
@@ -789,14 +822,18 @@
       const zodiacTextEl = document.getElementById("zodiacText");
       const bonusNumberEl = document.getElementById("bonusNumber");
       const toastEl = document.getElementById("toast");
+      const cardStatusEl = document.getElementById("cardStatus");
+      const cardPreviewEl = document.getElementById("cardPreview");
 
       const state = {
         draws: [],
         locked: false,
         apiKey: localStorage.getItem("openai_api_key") || "",
+        soulKey: localStorage.getItem("soul2_api_key") || "",
       };
 
       apiKeyInput.value = state.apiKey;
+      soulKeyInput.value = state.soulKey;
 
       function showToast(message) {
         toastEl.textContent = message;
@@ -806,6 +843,10 @@
             toastEl.textContent = "";
           }, 2500);
         }
+      }
+
+      function setCardStatus(message) {
+        cardStatusEl.textContent = message;
       }
 
       function trackLottoDrawClick(source) {
@@ -956,6 +997,23 @@
         bonusNumberEl.textContent = entry ? formatNumber(entry.bonus) : "-";
       }
 
+      function setCardFallback(entry) {
+        const title = entry ? `${entry.zodiac.ko} 카드` : "Zodiac Card";
+        const subtitle = entry
+          ? `${entry.zodiac.en} · ${entry.numbers.map(formatNumber).join(" / ")} + ${formatNumber(entry.bonus)}`
+          : "추천이 완료되면 이미지가 표시됩니다.";
+
+        cardPreviewEl.innerHTML = `
+          <div style="aspect-ratio: 3 / 4; display: grid; place-items: center; background: linear-gradient(180deg, #1a1d4d, #7a56c2 58%, #ffb6c1); color: #fff; padding: 20px; text-align: center;">
+            <div>
+              <div style="font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.88;">${escapeHtml(title)}</div>
+              <div style="margin-top: 10px; font-size: 18px; font-weight: 700;">${escapeHtml(title)}</div>
+              <div style="margin-top: 6px; font-size: 14px; line-height: 1.5; opacity: 0.92;">${escapeHtml(subtitle)}</div>
+            </div>
+          </div>
+        `;
+      }
+
       function extractModelText(data) {
         if (typeof data?.output_text === "string" && data.output_text.trim()) {
           return data.output_text;
@@ -1000,6 +1058,73 @@
         } catch (error) {
           console.error(error);
           showToast("DB 저장에 실패했지만 추천 결과는 유지됩니다.");
+          return null;
+        }
+      }
+
+      function buildSoulPrompt(entry) {
+        const numberLine = entry.numbers.map(formatNumber).join(", ");
+        return [
+          "Vertical zodiac card image, 3:4 composition.",
+          "Deep indigo night sky with a dreamy violet-to-pink gradient horizon.",
+          "Delicate constellation lines, glowing star nodes, soft nebula clouds, luminous atmosphere.",
+          "An ethereal silhouette on a hill at the bottom edge, quiet and contemplative.",
+          "Editorial, cinematic, polished, high detail, elegant, magical, no text, no watermark.",
+          `Theme: ${entry.zodiac.ko} (${entry.zodiac.en}).`,
+          `Lucky numbers inspiration: ${numberLine}.`,
+          `Bonus number inspiration: ${formatNumber(entry.bonus)}.`,
+          "The overall feel should resemble a romantic constellation poster with refined light bloom.",
+        ].join(" ");
+      }
+
+      async function generateZodiacCard(entry) {
+        const apiKey = soulKeyInput.value.trim();
+
+        if (!apiKey) {
+          setCardStatus("Soul 2 API 키가 없어서 카드 이미지는 생성하지 않았어요.");
+          setCardFallback(entry);
+          return null;
+        }
+
+        setCardStatus("별자리 카드 이미지를 생성하는 중...");
+
+        try {
+          const response = await fetch("/api/zodiac-card", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              apiKey,
+              prompt: buildSoulPrompt(entry),
+              aspect_ratio: "3:4",
+              resolution: "1080p",
+            }),
+          });
+
+          if (!response.ok) {
+            const body = await response.text();
+            throw new Error(`image api error (${response.status}): ${body.slice(0, 200)}`);
+          }
+
+          const payload = await response.json();
+          if (!payload.image_data_url) {
+            throw new Error("missing image data");
+          }
+
+          cardPreviewEl.innerHTML = `
+            <img
+              src="${escapeHtml(payload.image_data_url)}"
+              alt="${escapeHtml(entry.zodiac.ko)} 별자리 카드"
+              style="display:block; width:100%; height:auto; aspect-ratio:3/4; object-fit:cover;"
+            />
+          `;
+          setCardStatus(`${entry.zodiac.ko} 별자리 카드가 생성되었습니다.`);
+          return payload;
+        } catch (error) {
+          console.error(error);
+          setCardStatus("이미지 생성에 실패해서 미리보기 카드로 대체했어요.");
+          setCardFallback(entry);
           return null;
         }
       }
@@ -1127,7 +1252,10 @@
         state.draws.unshift(entry);
         renderHistory();
         updateMetrics(entry);
-        await saveDrawToDatabase(entry);
+        await Promise.allSettled([
+          saveDrawToDatabase(entry),
+          generateZodiacCard(entry),
+        ]);
 
         chatLog.innerHTML = "";
         addChatMessage("user", `${userText}로 추천해줘.`, "입력");
@@ -1162,6 +1290,8 @@
         zodiacTextEl.textContent = "-";
         bonusNumberEl.textContent = "-";
         statusText.textContent = "아직 추천 전입니다";
+        setCardStatus("추천이 완료되면 이미지가 생성됩니다.");
+        setCardFallback(null);
         showToast("기록을 초기화했습니다.");
       }
 
@@ -1176,11 +1306,29 @@
         showToast("API 키를 저장했습니다.");
       });
 
+      saveSoulKeyBtn.addEventListener("click", () => {
+        const key = soulKeyInput.value.trim();
+        if (!key) {
+          showToast("저장할 Soul 2 API 키를 입력해 주세요.");
+          return;
+        }
+        localStorage.setItem("soul2_api_key", key);
+        state.soulKey = key;
+        showToast("Soul 2 API 키를 저장했습니다.");
+      });
+
       clearKeyBtn.addEventListener("click", () => {
         localStorage.removeItem("openai_api_key");
         apiKeyInput.value = "";
         state.apiKey = "";
         showToast("API 키를 삭제했습니다.");
+      });
+
+      clearSoulKeyBtn.addEventListener("click", () => {
+        localStorage.removeItem("soul2_api_key");
+        soulKeyInput.value = "";
+        state.soulKey = "";
+        showToast("Soul 2 API 키를 삭제했습니다.");
       });
 
       drawBtn.addEventListener("click", () => requestRecommendation("primary"));
