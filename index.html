@@ -952,6 +952,40 @@
         return parts.join("").trim();
       }
 
+      async function saveDrawToDatabase(entry) {
+        try {
+          const response = await fetch("/api/draws", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              birthdate: entry.birthdate,
+              zodiac_key: entry.zodiac.key,
+              zodiac_ko: entry.zodiac.ko,
+              zodiac_en: entry.zodiac.en,
+              numbers: entry.numbers,
+              bonus: entry.bonus,
+              explanation: entry.explanation,
+              chat_reply: entry.chatReply,
+              model: entry.model || "gpt-5.4-mini",
+              source: entry.source || "openai",
+            }),
+          });
+
+          if (!response.ok) {
+            const body = await response.text();
+            throw new Error(`DB 저장 실패 (${response.status}): ${body.slice(0, 180)}`);
+          }
+
+          return await response.json();
+        } catch (error) {
+          console.error(error);
+          showToast("DB 저장에 실패했지만 추천 결과는 유지됩니다.");
+          return null;
+        }
+      }
+
       function parseJsonLoose(text) {
         const trimmed = String(text || "").trim();
         const start = trimmed.indexOf("{");
@@ -1045,20 +1079,26 @@
           }
 
           entry = {
+            birthdate,
             zodiac,
             numbers: uniqueNumbers,
             bonus: safeBonus,
             explanation: String(parsed.explanation || ""),
             chatReply: String(parsed.chat_reply || ""),
+            model: "gpt-5.4-mini",
+            source: "openai",
           };
         } catch (error) {
           const fallback = pickFallbackNumbers(`${birthdate}-${zodiac.key}`);
           entry = {
+            birthdate,
             zodiac,
             numbers: fallback.slice(0, 6),
             bonus: fallback[6],
             explanation: `현재는 API 응답을 받지 못해서 ${zodiac.ko}의 기본 성향을 바탕으로 자동 추천했어요.`,
             chatReply: `${zodiac.ko} 느낌으로 번호를 골라봤어요. API는 잠시 실패했지만 추첨 결과는 확인할 수 있어요.`,
+            model: "fallback",
+            source: "local",
           };
           showToast("API 요청에 실패해서 로컬 추첨으로 대체했습니다.");
           console.error(error);
@@ -1067,6 +1107,7 @@
         state.draws.unshift(entry);
         renderHistory();
         updateMetrics(entry);
+        await saveDrawToDatabase(entry);
 
         chatLog.innerHTML = "";
         addChatMessage("user", `${userText}로 추천해줘.`, "입력");
