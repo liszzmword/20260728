@@ -747,7 +747,7 @@
                   <button id="clearSoulSecretBtn" class="button-secondary" type="button">키 삭제</button>
                 </div>
               </div>
-              <p class="helper">계정에 시크릿 키가 함께 발급된 경우 여기에 입력해 주세요. 없으면 비워둬도 됩니다.</p>
+              <p class="helper">현재 Segmind 문서는 x-api-key만 안내합니다. 이 칸은 참고용으로만 남겨두었어요.</p>
             </div>
 
             <div class="status" id="statusText" aria-live="polite">아직 추천 전입니다</div>
@@ -1115,10 +1115,9 @@
 
       async function generateZodiacCard(entry) {
         const apiKey = soulKeyInput.value.trim();
-        const apiSecret = soulSecretInput.value.trim();
 
-        if (!apiKey && !apiSecret) {
-          setCardStatus("Soul 2 API 키와 Secret이 모두 비어 있어서 카드 이미지는 생성하지 않았어요.");
+        if (!apiKey) {
+          setCardStatus("Soul 2 API 키가 없어서 카드 이미지는 생성하지 않았어요. 현재 문서는 x-api-key만 사용합니다.");
           setCardFallback(entry);
           return null;
         }
@@ -1133,7 +1132,6 @@
             },
             body: JSON.stringify({
               apiKey,
-              apiSecret,
               prompt: buildSoulPrompt(entry),
               aspect_ratio: "3:4",
               resolution: "1080p",

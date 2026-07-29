@@ -33,7 +33,6 @@ module.exports = async function handler(req, res) {
   }
 
   const apiKey = typeof payload.apiKey === "string" ? payload.apiKey.trim() : "";
-  const apiSecret = typeof payload.apiSecret === "string" ? payload.apiSecret.trim() : "";
   const prompt = typeof payload.prompt === "string" ? payload.prompt.trim() : "";
   const aspectRatio = typeof payload.aspect_ratio === "string" ? payload.aspect_ratio : "3:4";
   const resolution = typeof payload.resolution === "string" ? payload.resolution : "1080p";
@@ -44,7 +43,7 @@ module.exports = async function handler(req, res) {
   if (!apiKey) {
     return send(res, 400, {
       error: "Missing apiKey",
-      hint: "Soul 2 API 키를 입력해 주세요. 필요하면 API Secret도 같이 넣어 주세요.",
+      hint: "Soul 2 API 키를 입력해 주세요. Segmind 문서는 x-api-key 인증만 안내합니다.",
     });
   }
 
@@ -57,7 +56,6 @@ module.exports = async function handler(req, res) {
     headers: {
       "Content-Type": "application/json",
       "x-api-key": apiKey,
-      ...(apiSecret ? { "x-api-secret": apiSecret, Authorization: `Bearer ${apiSecret}` } : {}),
     },
     body: JSON.stringify({
       prompt,
