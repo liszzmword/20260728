@@ -41,7 +41,10 @@ module.exports = async function handler(req, res) {
     : DEFAULT_ENDPOINT;
 
   if (!apiKey) {
-    return send(res, 400, { error: "Missing apiKey" });
+    return send(res, 400, {
+      error: "Missing apiKey",
+      hint: "Soul 2 API 키를 입력해 주세요. Segmind API는 x-api-key 하나만 사용합니다.",
+    });
   }
 
   if (!prompt) {
@@ -67,7 +70,9 @@ module.exports = async function handler(req, res) {
     const errorText = await response.text();
     return send(res, response.status, {
       error: "Soul 2 image generation failed",
+      upstream_status: response.status,
       details: errorText.slice(0, 500),
+      endpoint,
     });
   }
 
@@ -82,10 +87,10 @@ module.exports = async function handler(req, res) {
       return send(res, 200, { ok: true, image_data_url: imageUrl });
     }
 
-    return send(res, 200, { ok: true, raw: json });
+    return send(res, 200, { ok: true, raw: json, endpoint });
   }
 
   const buffer = Buffer.from(await response.arrayBuffer());
   const dataUrl = `data:${contentType || "image/png"};base64,${buffer.toString("base64")}`;
-  return send(res, 200, { ok: true, image_data_url: dataUrl });
+  return send(res, 200, { ok: true, image_data_url: dataUrl, endpoint });
 };

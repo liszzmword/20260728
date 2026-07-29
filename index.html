@@ -1014,6 +1014,25 @@
         `;
       }
 
+      async function readResponseError(response) {
+        const fallback = `HTTP ${response.status}`;
+        const clone = response.clone();
+        try {
+          const json = await clone.json();
+          if (json && typeof json === "object") {
+            return json.hint || json.details || json.error || fallback;
+          }
+        } catch {
+          // fall through to text parsing
+        }
+        try {
+          const text = await response.text();
+          return text ? text.slice(0, 500) : fallback;
+        } catch {
+          return fallback;
+        }
+      }
+
       function extractModelText(data) {
         if (typeof data?.output_text === "string" && data.output_text.trim()) {
           return data.output_text;
@@ -1103,13 +1122,14 @@
           });
 
           if (!response.ok) {
-            const body = await response.text();
-            throw new Error(`image api error (${response.status}): ${body.slice(0, 200)}`);
+            const body = await readResponseError(response);
+            throw new Error(`image api error (${response.status}): ${body}`);
           }
 
           const payload = await response.json();
           if (!payload.image_data_url) {
-            throw new Error("missing image data");
+            const details = payload.raw ? JSON.stringify(payload.raw).slice(0, 240) : "missing image data";
+            throw new Error(details);
           }
 
           cardPreviewEl.innerHTML = `
@@ -1123,7 +1143,7 @@
           return payload;
         } catch (error) {
           console.error(error);
-          setCardStatus("이미지 생성에 실패해서 미리보기 카드로 대체했어요.");
+          setCardStatus(`이미지 생성 실패: ${error.message}`);
           setCardFallback(entry);
           return null;
         }
