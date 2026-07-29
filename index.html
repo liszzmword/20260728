@@ -738,6 +738,18 @@
               <p class="helper">별자리 카드 이미지를 만들 때 사용합니다. 저장하면 다음 방문 때도 이어서 사용할 수 있습니다.</p>
             </div>
 
+            <div class="key-box">
+              <div class="field-label">Soul 2 API Secret</div>
+              <div class="field-row">
+                <input id="soulSecret" class="text-input" type="password" placeholder="secret..." autocomplete="off" />
+                <div class="cta-row" style="margin-top: 0">
+                  <button id="saveSoulSecretBtn" class="button-secondary" type="button">키 저장</button>
+                  <button id="clearSoulSecretBtn" class="button-secondary" type="button">키 삭제</button>
+                </div>
+              </div>
+              <p class="helper">계정에 시크릿 키가 함께 발급된 경우 여기에 입력해 주세요. 없으면 비워둬도 됩니다.</p>
+            </div>
+
             <div class="status" id="statusText" aria-live="polite">아직 추천 전입니다</div>
             <div class="metrics" aria-live="polite">
               <div class="metric">
@@ -812,9 +824,12 @@
       const clearKeyBtn = document.getElementById("clearKeyBtn");
       const saveSoulKeyBtn = document.getElementById("saveSoulKeyBtn");
       const clearSoulKeyBtn = document.getElementById("clearSoulKeyBtn");
+      const saveSoulSecretBtn = document.getElementById("saveSoulSecretBtn");
+      const clearSoulSecretBtn = document.getElementById("clearSoulSecretBtn");
       const birthdateInput = document.getElementById("birthdate");
       const apiKeyInput = document.getElementById("apiKey");
       const soulKeyInput = document.getElementById("soulKey");
+      const soulSecretInput = document.getElementById("soulSecret");
       const chatLog = document.getElementById("chatLog");
       const historyGrid = document.getElementById("historyGrid");
       const statusText = document.getElementById("statusText");
@@ -830,10 +845,12 @@
         locked: false,
         apiKey: localStorage.getItem("openai_api_key") || "",
         soulKey: localStorage.getItem("soul2_api_key") || "",
+        soulSecret: localStorage.getItem("soul2_api_secret") || "",
       };
 
       apiKeyInput.value = state.apiKey;
       soulKeyInput.value = state.soulKey;
+      soulSecretInput.value = state.soulSecret;
 
       function showToast(message) {
         toastEl.textContent = message;
@@ -1098,9 +1115,10 @@
 
       async function generateZodiacCard(entry) {
         const apiKey = soulKeyInput.value.trim();
+        const apiSecret = soulSecretInput.value.trim();
 
-        if (!apiKey) {
-          setCardStatus("Soul 2 API 키가 없어서 카드 이미지는 생성하지 않았어요.");
+        if (!apiKey && !apiSecret) {
+          setCardStatus("Soul 2 API 키와 Secret이 모두 비어 있어서 카드 이미지는 생성하지 않았어요.");
           setCardFallback(entry);
           return null;
         }
@@ -1115,6 +1133,7 @@
             },
             body: JSON.stringify({
               apiKey,
+              apiSecret,
               prompt: buildSoulPrompt(entry),
               aspect_ratio: "3:4",
               resolution: "1080p",
@@ -1337,6 +1356,17 @@
         showToast("Soul 2 API 키를 저장했습니다.");
       });
 
+      saveSoulSecretBtn.addEventListener("click", () => {
+        const secret = soulSecretInput.value.trim();
+        if (!secret) {
+          showToast("저장할 Soul 2 API Secret을 입력해 주세요.");
+          return;
+        }
+        localStorage.setItem("soul2_api_secret", secret);
+        state.soulSecret = secret;
+        showToast("Soul 2 API Secret을 저장했습니다.");
+      });
+
       clearKeyBtn.addEventListener("click", () => {
         localStorage.removeItem("openai_api_key");
         apiKeyInput.value = "";
@@ -1349,6 +1379,13 @@
         soulKeyInput.value = "";
         state.soulKey = "";
         showToast("Soul 2 API 키를 삭제했습니다.");
+      });
+
+      clearSoulSecretBtn.addEventListener("click", () => {
+        localStorage.removeItem("soul2_api_secret");
+        soulSecretInput.value = "";
+        state.soulSecret = "";
+        showToast("Soul 2 API Secret을 삭제했습니다.");
       });
 
       drawBtn.addEventListener("click", () => requestRecommendation("primary"));
