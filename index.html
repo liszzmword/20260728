@@ -808,6 +808,16 @@
         }
       }
 
+      function trackLottoDrawClick(source) {
+        if (typeof window.gtag === "function") {
+          window.gtag("event", "lotto_draw_click", {
+            event_category: "engagement",
+            event_label: source,
+            button_source: source,
+          });
+        }
+      }
+
       function formatNumber(number) {
         return String(number).padStart(2, "0");
       }
@@ -1004,8 +1014,10 @@
         return JSON.parse(trimmed.slice(start, end + 1));
       }
 
-      async function requestRecommendation() {
+      async function requestRecommendation(source = "primary") {
         if (state.locked) return;
+
+        trackLottoDrawClick(source);
 
         const birthdate = birthdateInput.value;
         const apiKey = apiKeyInput.value.trim();
@@ -1171,8 +1183,8 @@
         showToast("API 키를 삭제했습니다.");
       });
 
-      drawBtn.addEventListener("click", requestRecommendation);
-      drawQuickBtn.addEventListener("click", requestRecommendation);
+      drawBtn.addEventListener("click", () => requestRecommendation("primary"));
+      drawQuickBtn.addEventListener("click", () => requestRecommendation("orb"));
       resetBtn.addEventListener("click", resetAll);
     </script>
   </body>
