@@ -727,19 +727,19 @@
             </div>
 
             <div class="key-box">
-              <div class="field-label">Soul 2 API Key</div>
+              <div class="field-label">Higgsfield API Key ID</div>
               <div class="field-row">
-                <input id="soulKey" class="text-input" type="password" placeholder="SG_..." autocomplete="off" />
+                <input id="soulKey" class="text-input" type="password" placeholder="key id..." autocomplete="off" />
                 <div class="cta-row" style="margin-top: 0">
                   <button id="saveSoulKeyBtn" class="button-secondary" type="button">키 저장</button>
                   <button id="clearSoulKeyBtn" class="button-secondary" type="button">키 삭제</button>
                 </div>
               </div>
-              <p class="helper">별자리 카드 이미지를 만들 때 사용합니다. 저장하면 다음 방문 때도 이어서 사용할 수 있습니다.</p>
+              <p class="helper">별자리 카드 이미지를 만들 때 사용하는 힉스필드 Key ID입니다. 저장하면 다음 방문 때도 이어서 사용할 수 있습니다.</p>
             </div>
 
             <div class="key-box">
-              <div class="field-label">Soul 2 API Secret</div>
+              <div class="field-label">Higgsfield API Secret</div>
               <div class="field-row">
                 <input id="soulSecret" class="text-input" type="password" placeholder="secret..." autocomplete="off" />
                 <div class="cta-row" style="margin-top: 0">
@@ -747,7 +747,7 @@
                   <button id="clearSoulSecretBtn" class="button-secondary" type="button">키 삭제</button>
                 </div>
               </div>
-              <p class="helper">현재 Segmind 문서는 x-api-key만 안내합니다. 이 칸은 참고용으로만 남겨두었어요.</p>
+              <p class="helper">힉스필드 공식 방식에서 함께 필요한 비밀키입니다. 브라우저 localStorage에만 저장돼요.</p>
             </div>
 
             <div class="status" id="statusText" aria-live="polite">아직 추천 전입니다</div>
@@ -1115,9 +1115,16 @@
 
       async function generateZodiacCard(entry) {
         const apiKey = soulKeyInput.value.trim();
+        const apiSecret = soulSecretInput.value.trim();
 
         if (!apiKey) {
-          setCardStatus("Soul 2 API 키가 없어서 카드 이미지는 생성하지 않았어요. 현재 문서는 x-api-key만 사용합니다.");
+          setCardStatus("Higgsfield API Key ID가 없어서 카드 이미지는 생성하지 않았어요.");
+          setCardFallback(entry);
+          return null;
+        }
+
+        if (!apiSecret) {
+          setCardStatus("Higgsfield API Secret이 없어서 카드 이미지는 생성하지 않았어요.");
           setCardFallback(entry);
           return null;
         }
@@ -1132,9 +1139,10 @@
             },
             body: JSON.stringify({
               apiKey,
+              apiSecret,
               prompt: buildSoulPrompt(entry),
               aspect_ratio: "3:4",
-              resolution: "1080p",
+              resolution: "2k",
             }),
           });
 
@@ -1346,23 +1354,23 @@
       saveSoulKeyBtn.addEventListener("click", () => {
         const key = soulKeyInput.value.trim();
         if (!key) {
-          showToast("저장할 Soul 2 API 키를 입력해 주세요.");
+          showToast("저장할 Higgsfield API Key ID를 입력해 주세요.");
           return;
         }
         localStorage.setItem("soul2_api_key", key);
         state.soulKey = key;
-        showToast("Soul 2 API 키를 저장했습니다.");
+        showToast("Higgsfield API Key ID를 저장했습니다.");
       });
 
       saveSoulSecretBtn.addEventListener("click", () => {
         const secret = soulSecretInput.value.trim();
         if (!secret) {
-          showToast("저장할 Soul 2 API Secret을 입력해 주세요.");
+          showToast("저장할 Higgsfield API Secret을 입력해 주세요.");
           return;
         }
         localStorage.setItem("soul2_api_secret", secret);
         state.soulSecret = secret;
-        showToast("Soul 2 API Secret을 저장했습니다.");
+        showToast("Higgsfield API Secret을 저장했습니다.");
       });
 
       clearKeyBtn.addEventListener("click", () => {
@@ -1376,14 +1384,14 @@
         localStorage.removeItem("soul2_api_key");
         soulKeyInput.value = "";
         state.soulKey = "";
-        showToast("Soul 2 API 키를 삭제했습니다.");
+        showToast("Higgsfield API Key ID를 삭제했습니다.");
       });
 
       clearSoulSecretBtn.addEventListener("click", () => {
         localStorage.removeItem("soul2_api_secret");
         soulSecretInput.value = "";
         state.soulSecret = "";
-        showToast("Soul 2 API Secret을 삭제했습니다.");
+        showToast("Higgsfield API Secret을 삭제했습니다.");
       });
 
       drawBtn.addEventListener("click", () => requestRecommendation("primary"));
