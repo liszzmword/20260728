@@ -6,16 +6,21 @@ function send(res, statusCode, payload) {
   res.end(JSON.stringify(payload));
 }
 
-function isPlainObject(value) {
-  return value && typeof value === "object" && !Array.isArray(value);
-}
-
+// Higgsfield only accepts "720p" | "1080p"; map legacy "1.5k"/"2k" values to "1080p".
 function normalizeQuality(value) {
   const raw = String(value || "").trim().toLowerCase();
-  if (raw === "1.5k" || raw === "2k") {
-    return raw;
+  if (raw === "720p") {
+    return "720p";
   }
-  return "2k";
+  return "1080p";
+}
+
+function extractImageUrl(job) {
+  const results = job && job.results;
+  if (!results) return null;
+  const raw = results.raw && results.raw.url;
+  const min = results.min && results.min.url;
+  return raw || min || null;
 }
 
 module.exports = async function handler(req, res) {
@@ -67,26 +72,29 @@ module.exports = async function handler(req, res) {
     return send(res, 400, { error: "Missing prompt" });
   }
 
+  const authHeader = `Key ${apiKey}:${apiSecret}`;
+
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
       "User-Agent": "higgsfield-server-js/2.0",
-      Authorization: `Key ${apiKey}:${apiSecret}`,
+      Authorization: authHeader,
     },
     body: JSON.stringify({
-      prompt,
-      width_and_height: aspectRatio === "3:4" ? "1536x2048" : "1536x1536",
-      quality: normalizeQuality(resolution),
-      batch_size: "single",
+      params: {
+        prompt,
+        width_and_height: aspectRatio === "3:4" ? "1536x2048" : "1536x1536",
+        quality: normalizeQuality(resolution),
+        batch_size: 1,
+      },
     }),
   });
 
-  const contentType = response.headers.get("content-type") || "";
+  const responseText = await response.text();
 
   if (!response.ok) {
-    const errorText = await response.text();
     const hint =
       response.status === 401
         ? "Higgsfield API Key ID와 Secret이 유효한지 다시 확인해 주세요."
@@ -95,48 +103,45 @@ module.exports = async function handler(req, res) {
       error: "Soul 2 image generation failed",
       hint,
       upstream_status: response.status,
-      details: errorText.slice(0, 500),
+      details: responseText.slice(0, 500),
       endpoint,
     });
   }
 
   let json;
-  if (contentType.includes("application/json")) {
-    json = await response.json();
-  } else {
-    const text = await response.text();
-    try {
-      json = JSON.parse(text);
-    } catch {
-      json = { raw_text: text };
-    }
+  try {
+    json = JSON.parse(responseText);
+  } catch {
+    json = { raw_text: responseText };
   }
 
-  const requestId = json?.request_id;
-  const statusUrl = json?.status_url;
-  const directImageUrl =
-    (isPlainObject(json) && (json.image_url || json.url)) ||
-    (Array.isArray(json?.images) && json.images[0]?.url) ||
-    null;
+  const jobSetId = json && json.id;
+  const firstJob = Array.isArray(json && json.jobs) ? json.jobs[0] : null;
 
-  if (typeof directImageUrl === "string" && directImageUrl) {
-    return send(res, 200, { ok: true, image_data_url: directImageUrl, endpoint });
+  const immediateUrl = extractImageUrl(firstJob);
+  if (typeof immediateUrl === "string" && immediateUrl) {
+    return send(res, 200, { ok: true, image_data_url: immediateUrl, endpoint, jobSetId });
   }
 
-  if (!requestId || !statusUrl) {
-    return send(res, 200, { ok: true, raw: json, endpoint });
+  if (!jobSetId) {
+    return send(res, 502, {
+      error: "Unexpected Soul 2 response",
+      details: JSON.stringify(json).slice(0, 500),
+      endpoint,
+    });
   }
 
-  const pollHeaders = {
-    Authorization: `Key ${apiKey}:${apiSecret}`,
-  };
+  const statusUrl = `${new URL(endpoint).origin}/v1/job-sets/${jobSetId}`;
 
   const deadline = Date.now() + 180000;
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
     const statusResponse = await fetch(statusUrl, {
-      headers: pollHeaders,
+      headers: {
+        Accept: "application/json",
+        Authorization: authHeader,
+      },
     });
     const statusText = await statusResponse.text();
     let statusJson;
@@ -156,19 +161,23 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const status = String(statusJson?.status || "").toLowerCase();
+    const job = Array.isArray(statusJson && statusJson.jobs) ? statusJson.jobs[0] : null;
+    const status = String((job && job.status) || "").toLowerCase();
+
     if (status === "completed") {
-      const imageUrl =
-        (Array.isArray(statusJson.images) && statusJson.images[0]?.url) ||
-        statusJson?.video?.url ||
-        statusJson?.url ||
-        null;
+      const imageUrl = extractImageUrl(job);
 
       if (typeof imageUrl === "string" && imageUrl) {
-        return send(res, 200, { ok: true, image_data_url: imageUrl, endpoint, requestId, statusUrl });
+        return send(res, 200, { ok: true, image_data_url: imageUrl, endpoint, jobSetId, statusUrl });
       }
 
-      return send(res, 200, { ok: true, raw: statusJson, endpoint, requestId, statusUrl });
+      return send(res, 502, {
+        error: "Soul 2 completed without an image URL",
+        details: JSON.stringify(statusJson).slice(0, 500),
+        endpoint,
+        jobSetId,
+        statusUrl,
+      });
     }
 
     if (status === "failed" || status === "nsfw" || status === "canceled") {
@@ -176,7 +185,7 @@ module.exports = async function handler(req, res) {
         error: "Soul 2 generation failed",
         details: JSON.stringify(statusJson).slice(0, 500),
         endpoint,
-        requestId,
+        jobSetId,
         statusUrl,
       });
     }
@@ -185,7 +194,7 @@ module.exports = async function handler(req, res) {
   return send(res, 504, {
     error: "Soul 2 generation timed out",
     endpoint,
-    requestId,
+    jobSetId,
     statusUrl,
   });
 };
